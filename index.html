@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <script>
+      (function() {
+        // Keep original values
+        let myMutableFetch = window.fetch;
+        let myMutableSendBeacon = window.navigator ? window.navigator.sendBeacon : null;
+        const originalRequest = window.Request;
+
+        // Set up the Proxy for globalThis, self, global to absorb dynamic global modifications
+        const globalThisProxy = new Proxy(window, {
+          get(target, prop) {
+            if (prop === 'fetch') {
+              return typeof myMutableFetch === 'function' ? myMutableFetch.bind(target) : myMutableFetch;
+            }
+            if (prop === 'globalThis' || prop === 'self' || prop === 'global') {
+              return globalThisProxy;
+            }
+            if (prop === 'navigator') {
+              const realNav = target.navigator;
+              if (realNav) {
+                return new Proxy(realNav, {
+                  get(nTarget, nProp) {
+                    if (nProp === 'sendBeacon') {
+                      return typeof myMutableSendBeacon === 'function' ? myMutableSendBeacon.bind(nTarget) : myMutableSendBeacon;
+                    }
+                    const nVal = nTarget[nProp];
+                    if (typeof nVal === 'function') {
+                      try {
+                        return nVal.bind(nTarget);
+                      } catch (e) {
+                        return nVal;
+                      }
+                    }
+                    return nVal;
+                  },
+                  set(nTarget, nProp, nValue) {
+                    if (nProp === 'sendBeacon') {
+                      myMutableSendBeacon = nValue;
+                      return true;
+                    }
+                    try {
+                      nTarget[nProp] = nValue;
+                      return true;
+                    } catch (e) {
+                      return true;
+                    }
+                  }
+                });
+              }
+            }
+            if (prop === 'Request') {
+              // Return originalRequest directly to prevent weird context binding
+              return originalRequest;
+            }
+            const val = target[prop];
+            if (typeof val === 'function') {
+              // Safely bind context for window functions to prevent 'Illegal invocation'
+              try {
+                return val.bind(target);
+              } catch (e) {
+                return val;
+              }
+            }
+            return val;
+          },
+          set(target, prop, value) {
+            if (prop === 'fetch') {
+              myMutableFetch = value;
+              return true;
+            }
+            if (prop === 'globalThis' || prop === 'self' || prop === 'global') {
+              return true;
+            }
+            try {
+              target[prop] = value;
+              return true;
+            } catch (e) {
+              // Silently intercept write errors to prevent fatal crashes
+              return true;
+            }
+          },
+          has(target, prop) {
+            return Reflect.has(target, prop);
+          }
+        });
+
+        // Define configurable getters/setters on the window object for extra resilience
+        try {
+          Object.defineProperty(window, 'globalThis', {
+            get() { return globalThisProxy; },
+            configurable: true,
+            enumerable: true
+          });
+        } catch (e) {}
+
+        try {
+          Object.defineProperty(window, 'self', {
+            get() { return globalThisProxy; },
+            configurable: true,
+            enumerable: true
+          });
+        } catch (e) {}
+
+        try {
+          Object.defineProperty(window, 'global', {
+            get() { return globalThisProxy; },
+            configurable: true,
+            enumerable: true
+          });
+        } catch (e) {}
+
+        try {
+          if (myMutableFetch) {
+            Object.defineProperty(window, 'fetch', {
+              get() { return myMutableFetch; },
+              set(val) { myMutableFetch = val; },
+              configurable: true,
+              enumerable: true
+            });
+          }
+        } catch (e) {
+          try {
+            Object.defineProperty(Window.prototype, 'fetch', {
+              get() { return myMutableFetch; },
+              set(val) { myMutableFetch = val; },
+              configurable: true,
+              enumerable: true
+            });
+          } catch (err) {}
+        }
+
+        try {
+          if (window.navigator && window.navigator.sendBeacon) {
+            Object.defineProperty(window.navigator, 'sendBeacon', {
+              get() { return myMutableSendBeacon; },
+              set(val) { myMutableSendBeacon = val; },
+              configurable: true,
+              enumerable: true
+            });
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Google AI Studio App</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

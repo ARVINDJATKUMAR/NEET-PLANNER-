@@ -1,0 +1,6 @@
+{
+  "name": "Study Planner",
+  "description": "An automated offline-first study coordinator that generates optimized chronological roadmap schedules, auto-manages missed backlog lectures daily, and provides visual progression dashboards.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
